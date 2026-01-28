@@ -21,15 +21,10 @@ if (!DISCORD_WEBHOOK_URL) {
   console.error("   Las notificaciones no se enviarán");
 }
 
-console.log("🔐 Variables de entorno:");
-console.log(`   - Usuario: ${USERNAME ? USERNAME.substring(0, 3) + "***" : "NO CONFIGURADO"}`);
-console.log(`   - Password: ${PASSWORD ? "***" : "NO CONFIGURADO"}`);
-console.log(`   - Discord: ${DISCORD_WEBHOOK_URL ? "✓ Configurado" : "✗ Falta"}`);
-
 const DB_FILE = path.join(__dirname, "eminus_tasks.json");
 const REMINDERS_FILE = path.join(__dirname, "reminders_sent.json");
 const MESES_LIMITE = 6;
-const MINUTOS_ANTES = 10;
+const MINUTOS_ANTES = 60;
 
 // --------------------------------------------------
 
