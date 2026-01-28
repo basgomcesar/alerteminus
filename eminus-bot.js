@@ -3,19 +3,42 @@ const fs = require("fs");
 const path = require("path");
 
 // --- CONFIGURACIÓN ---
-const USERNAME = process.env.USERNAMEEMINUS || "";
-const PASSWORD = process.env.PASSWORD || "";
-const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || "";
+// En GitHub Actions, las variables vienen directamente de process.env
+const USERNAME = process.env.USERNAMEEMINUS;
+const PASSWORD = process.env.PASSWORD;
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
+
+// Validar que existan las credenciales
+if (!USERNAME || !PASSWORD) {
+  console.error("❌ ERROR: Faltan credenciales de Eminus");
+  console.error("   - USERNAMEEMINUS:", USERNAME ? "✓ Configurado" : "✗ Falta");
+  console.error("   - PASSWORD:", PASSWORD ? "✓ Configurado" : "✗ Falta");
+  process.exit(1);
+}
+
+if (!DISCORD_WEBHOOK_URL) {
+  console.error("⚠️  ADVERTENCIA: DISCORD_WEBHOOK_URL no configurado");
+  console.error("   Las notificaciones no se enviarán");
+}
+
+console.log("🔐 Variables de entorno:");
+console.log(`   - Usuario: ${USERNAME ? USERNAME.substring(0, 3) + "***" : "NO CONFIGURADO"}`);
+console.log(`   - Password: ${PASSWORD ? "***" : "NO CONFIGURADO"}`);
+console.log(`   - Discord: ${DISCORD_WEBHOOK_URL ? "✓ Configurado" : "✗ Falta"}`);
 
 const DB_FILE = path.join(__dirname, "eminus_tasks.json");
 const REMINDERS_FILE = path.join(__dirname, "reminders_sent.json");
 const MESES_LIMITE = 6;
-const MINUTOS_ANTES = 10; // Tiempo de anticipación para recordatorios
+const MINUTOS_ANTES = 10;
 
 // --------------------------------------------------
 
 async function sendDiscordAlert(curso, tarea, fechaFin, color = 0x3498db, isReminder = false) {
-  const emoji = isReminder ? "⏰" : "🆕";
+  if (!DISCORD_WEBHOOK_URL) {
+    console.log("⚠️  Saltando notificación Discord (webhook no configurado)");
+    return;
+  }
+
   const title = isReminder ? "⏰ RECORDATORIO: Actividad por Vencer" : "🆕 Nueva Actividad en Eminus";
   const description = isReminder 
     ? `⚠️ La actividad **${tarea}** del curso **${curso}** está por vencer en menos de ${MINUTOS_ANTES} minutos`
@@ -82,12 +105,15 @@ function debeEnviarRecordatorio(fechaTerminoStr, minutos = MINUTOS_ANTES) {
 
 async function getToken() {
   try {
+    console.log("\n🔐 Intentando login en Eminus...");
     const url = "https://eminus.uv.mx/eminusapi/api/auth";
     
     const payload = {
       username: USERNAME,
       password: PASSWORD
     };
+
+    console.log(`   Usuario: ${USERNAME.substring(0, 3)}***`);
 
     const res = await axios.post(url, payload, {
       headers: {
@@ -103,20 +129,42 @@ async function getToken() {
       }
     });
 
+    console.log(`   Status: ${res.status}`);
+
     if (res.status === 403) {
       console.error("❌ Error 403: Acceso prohibido");
+      console.error("   Verifica tus credenciales");
+      return null;
+    }
+
+    if (res.status === 401) {
+      console.error("❌ Error 401: Credenciales incorrectas");
+      console.error("   Usuario o contraseña inválidos");
       return null;
     }
 
     if (res.status === 200 || res.status === 201) {
-      return res.data?.accessToken || res.data?.token;
+      const token = res.data?.accessToken || res.data?.token;
+      if (token) {
+        console.log("✅ Login exitoso");
+        return token;
+      } else {
+        console.error("❌ Token no encontrado en respuesta");
+        console.error("   Respuesta:", JSON.stringify(res.data).substring(0, 200));
+        return null;
+      }
     }
 
     console.error("❌ Error inesperado:", res.status);
+    console.error("   Respuesta:", JSON.stringify(res.data).substring(0, 200));
     return null;
 
   } catch (err) {
-    console.error("❌ Error Login:", err.message);
+    console.error("❌ Error en Login:", err.message);
+    if (err.response) {
+      console.error("   Status:", err.response.status);
+      console.error("   Data:", JSON.stringify(err.response.data).substring(0, 200));
+    }
     return null;
   }
 }
@@ -133,18 +181,18 @@ async function checkActivities() {
     process.exit(1);
   }
 
-  console.log("✅ Login exitoso");
-
   // Cargar DB local
   let vistas = [];
   if (fs.existsSync(DB_FILE)) {
     vistas = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+    console.log(`📂 Tareas vistas previamente: ${vistas.length}`);
   }
 
   // Cargar recordatorios enviados
   let recordatoriosEnviados = [];
   if (fs.existsSync(REMINDERS_FILE)) {
     recordatoriosEnviados = JSON.parse(fs.readFileSync(REMINDERS_FILE, "utf8"));
+    console.log(`📂 Recordatorios enviados: ${recordatoriosEnviados.length}`);
   }
 
   const headers = {
