@@ -1,17 +1,16 @@
 {
-  "name": "alerteminus",
+  "name": "eminus-monitor",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Monitor de actividades Eminus UV para GitHub Actions",
+  "main": "eminus-bot.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node eminus-bot.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "axios": "^1.13.3",
-    "dotenv": "^17.2.3"
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
