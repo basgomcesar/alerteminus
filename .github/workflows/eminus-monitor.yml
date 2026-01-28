@@ -45,7 +45,7 @@ jobs:
           USERNAMEEMINUS: ${{ secrets.USERNAMEEMINUS }}
           PASSWORD: ${{ secrets.PASSWORD }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: node index.js
+        run: node eminus-bot.js
       
       - name: Commit and push changes 
         run: |
