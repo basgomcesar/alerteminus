@@ -2,8 +2,8 @@ name: Eminus Monitor
 
 on:
   schedule:
-    # Ejecutar cada 5 minutos
-    - cron: '*/5 * * * *'
+    # Ejecutar cada 1 hora
+    - cron: '0 * * * *'
   workflow_dispatch: # Permitir ejecución manual
 
 jobs:
