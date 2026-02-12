@@ -1,6 +1,8 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+//se agrega dotenv para cargar variables de entorno desde un .env local (opcional)
+require("dotenv").config();
 
 // --- CONFIGURACIÓN ---
 // En GitHub Actions, las variables vienen directamente de process.env
@@ -35,7 +37,7 @@ async function sendDiscordAlert(curso, tarea, fechaFin, color = 0x3498db, isRemi
   }
 
   const title = isReminder ? "⏰ RECORDATORIO: Actividad por Vencer" : "🆕 Nueva Actividad en Eminus";
-  const description = isReminder 
+  const description = isReminder
     ? `⚠️ La actividad **${tarea}** del curso **${curso}** está por vencer en menos de ${MINUTOS_ANTES} minutos`
     : `Se ha detectado una nueva tarea para el curso **${curso}**`;
 
@@ -66,15 +68,15 @@ async function sendDiscordAlert(curso, tarea, fechaFin, color = 0x3498db, isRemi
 
 function formatearFecha(fechaISO) {
   const fecha = new Date(fechaISO);
-  const opciones = { 
-    year: 'numeric', 
-    month: 'long', 
+  const opciones = {
+    year: 'numeric',
+    month: 'long',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'America/Mexico_City'
   };
-  
+
   return fecha.toLocaleDateString('es-MX', opciones);
 }
 
@@ -82,7 +84,7 @@ function esCursoReciente(fechaCreacion, mesesLimite = 6) {
   const fechaCurso = new Date(fechaCreacion);
   const fechaLimite = new Date();
   fechaLimite.setMonth(fechaLimite.getMonth() - mesesLimite);
-  
+
   return fechaCurso >= fechaLimite;
 }
 
@@ -102,7 +104,7 @@ async function getToken() {
   try {
     console.log("\n🔐 Intentando login en Eminus...");
     const url = "https://eminus.uv.mx/eminusapi/api/auth";
-    
+
     const payload = {
       username: USERNAME,
       password: PASSWORD
@@ -222,18 +224,49 @@ async function checkActivities() {
       const idCurso = curso.idCurso;
       const nombreCurso = curso.nombre;
 
-      const actRes = await axios.get(
-        `https://eminus.uv.mx/eminusapi8/api/Activity/getActividadesEstudiante/${idCurso}`,
-        { headers }
+      let actRes;
+
+      try {
+        actRes = await axios.get(
+          `https://eminus.uv.mx/eminusapi8/api/Activity/getActividadesEstudiante/${idCurso}`,
+          { headers }
+        );
+
+      } catch (err) {
+
+        // 👇 Si es 404 → solo log y continuar con siguiente curso
+        if (err.response?.status === 404) {
+          console.log(`⚠️ Curso sin actividades (404): ${nombreCurso}`);
+          continue;
+        }
+
+        // 👇 Si API regresa error custom con codigo 404
+        if (err.response?.data?.codigo === 404) {
+          console.log(`⚠️ Curso sin actividades: ${nombreCurso}`);
+          continue;
+        }
+
+        // 👇 Otro error real → sí lo lanzamos
+        console.error(`❌ Error obteniendo actividades de ${nombreCurso}:`,
+          err.response?.data || err.message
+        );
+
+        continue; // opcional: o throw err si quieres romper ejecución
+      }
+
+      console.log(
+        `   📖 Curso: ${nombreCurso} - Actividades encontradas: ${actRes.data?.contenido?.length || 0
+        }`
       );
 
       for (const act of actRes.data?.contenido || []) {
         const idAct = String(act.idActividad);
         const estadoEntrega = act.estadoEntrega;
 
-        // 1. Detectar actividades nuevas
+        // NUEVAS
         if (!vistas.includes(idAct)) {
           const fechaFormato = formatearFecha(act.fechaTermino);
+
           await sendDiscordAlert(
             nombreCurso,
             act.titulo,
@@ -247,14 +280,14 @@ async function checkActivities() {
           console.log(`   🔔 Nueva: ${act.titulo} (${nombreCurso})`);
         }
 
-        // 2. Verificar si debe enviar recordatorio
+        // RECORDATORIOS
         if (estadoEntrega === 1 && debeEnviarRecordatorio(act.fechaTermino, MINUTOS_ANTES)) {
           const recordatorioKey = `${idAct}_reminder`;
-          
+
           if (!recordatoriosEnviados.includes(recordatorioKey)) {
             const minutosRestantes = calcularMinutosRestantes(act.fechaTermino);
             const fechaFormato = formatearFecha(act.fechaTermino);
-            
+
             await sendDiscordAlert(
               nombreCurso,
               act.titulo,
@@ -265,11 +298,15 @@ async function checkActivities() {
 
             nuevosRecordatorios.push(recordatorioKey);
             recordatoriosEnviados_count++;
-            console.log(`   ⏰ Recordatorio: ${act.titulo} (${nombreCurso}) - ${minutosRestantes} min restantes`);
+
+            console.log(
+              `   ⏰ Recordatorio: ${act.titulo} (${nombreCurso}) - ${minutosRestantes} min restantes`
+            );
           }
         }
       }
     }
+
 
     if (actividadesNuevas === 0 && recordatoriosEnviados_count === 0) {
       console.log("✅ No hay actividades nuevas ni recordatorios pendientes");
