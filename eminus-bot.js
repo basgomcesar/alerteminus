@@ -1,8 +1,6 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-//se agrega dotenv para cargar variables de entorno desde un .env local (opcional)
-require("dotenv").config();
 
 // --- CONFIGURACIÓN ---
 // En GitHub Actions, las variables vienen directamente de process.env
