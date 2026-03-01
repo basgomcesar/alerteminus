@@ -3,23 +3,10 @@ const fs = require("fs");
 const path = require("path");
 
 // --- CONFIGURACIÓN ---
-// En GitHub Actions, las variables vienen directamente de process.env
 const USERNAME = process.env.USERNAMEEMINUS;
 const PASSWORD = process.env.PASSWORD;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-// Validar que existan las credenciales
-if (!USERNAME || !PASSWORD) {
-  console.error("❌ ERROR: Faltan credenciales de Eminus");
-  console.error("   - USERNAMEEMINUS:", USERNAME ? "✓ Configurado" : "✗ Falta");
-  console.error("   - PASSWORD:", PASSWORD ? "✓ Configurado" : "✗ Falta");
-  process.exit(1);
-}
-
-if (!DISCORD_WEBHOOK_URL) {
-  console.error("⚠️  ADVERTENCIA: DISCORD_WEBHOOK_URL no configurado");
-  console.error("   Las notificaciones no se enviarán");
-}
 
 const DB_FILE = path.join(__dirname, "eminus_tasks.json");
 const REMINDERS_FILE = path.join(__dirname, "reminders_sent.json");
@@ -30,7 +17,6 @@ const MINUTOS_ANTES = 60;
 
 async function sendDiscordAlert(curso, tarea, fechaFin, color = 0x3498db, isReminder = false) {
   if (!DISCORD_WEBHOOK_URL) {
-    console.log("⚠️  Saltando notificación Discord (webhook no configurado)");
     return;
   }
 
@@ -58,9 +44,8 @@ async function sendDiscordAlert(curso, tarea, fechaFin, color = 0x3498db, isRemi
 
   try {
     await axios.post(DISCORD_WEBHOOK_URL, payload);
-    console.log(`✅ Alerta enviada a Discord: ${title}`);
   } catch (err) {
-    console.error("❌ Error en Discord:", err.response?.data || err.message);
+    console.error("Error en Discord:", err.response?.data || err.message);
   }
 }
 
@@ -100,7 +85,6 @@ function debeEnviarRecordatorio(fechaTerminoStr, minutos = MINUTOS_ANTES) {
 
 async function getToken() {
   try {
-    console.log("\n🔐 Intentando login en Eminus...");
     const url = "https://eminus.uv.mx/eminusapi/api/auth";
 
     const payload = {
@@ -108,7 +92,6 @@ async function getToken() {
       password: PASSWORD
     };
 
-    console.log(`   Usuario: ${USERNAME.substring(0, 3)}***`);
 
     const res = await axios.post(url, payload, {
       headers: {
@@ -127,13 +110,13 @@ async function getToken() {
     console.log(`   Status: ${res.status}`);
 
     if (res.status === 403) {
-      console.error("❌ Error 403: Acceso prohibido");
+      console.error("Error 403: Acceso prohibido");
       console.error("   Verifica tus credenciales");
       return null;
     }
 
     if (res.status === 401) {
-      console.error("❌ Error 401: Credenciales incorrectas");
+      console.error("Error 401: Credenciales incorrectas");
       console.error("   Usuario o contraseña inválidos");
       return null;
     }
@@ -144,18 +127,18 @@ async function getToken() {
         console.log("✅ Login exitoso");
         return token;
       } else {
-        console.error("❌ Token no encontrado en respuesta");
+        console.error("Error: Token no encontrado en respuesta");
         console.error("   Respuesta:", JSON.stringify(res.data).substring(0, 200));
         return null;
       }
     }
 
-    console.error("❌ Error inesperado:", res.status);
+    console.error("Error inesperado:", res.status);
     console.error("   Respuesta:", JSON.stringify(res.data).substring(0, 200));
     return null;
 
   } catch (err) {
-    console.error("❌ Error en Login:", err.message);
+    console.error("Error en Login:", err.message);
     if (err.response) {
       console.error("   Status:", err.response.status);
       console.error("   Data:", JSON.stringify(err.response.data).substring(0, 200));
@@ -172,7 +155,7 @@ async function checkActivities() {
 
   const token = await getToken();
   if (!token) {
-    console.error("❌ No se pudo obtener el token");
+    console.error("Error: No se pudo obtener el token");
     process.exit(1);
   }
 
@@ -180,14 +163,14 @@ async function checkActivities() {
   let vistas = [];
   if (fs.existsSync(DB_FILE)) {
     vistas = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-    console.log(`📂 Tareas vistas previamente: ${vistas.length}`);
+    console.log(`Tareas vistas previamente: ${vistas.length}`);
   }
 
   // Cargar recordatorios enviados
   let recordatoriosEnviados = [];
   if (fs.existsSync(REMINDERS_FILE)) {
     recordatoriosEnviados = JSON.parse(fs.readFileSync(REMINDERS_FILE, "utf8"));
-    console.log(`📂 Recordatorios enviados: ${recordatoriosEnviados.length}`);
+    console.log(`Recordatorios enviados: ${recordatoriosEnviados.length}`);
   }
 
   const headers = {
@@ -215,7 +198,7 @@ async function checkActivities() {
       return esCursoReciente(fechaCreacion, MESES_LIMITE);
     });
 
-    console.log(`📚 Cursos activos: ${cursosRecientes.length}/${todosCursos.length}`);
+    console.log(`Cursos activos: ${cursosRecientes.length}/${todosCursos.length}`);
 
     for (const item of cursosRecientes) {
       const curso = item.curso;
@@ -234,18 +217,18 @@ async function checkActivities() {
 
         // 👇 Si es 404 → solo log y continuar con siguiente curso
         if (err.response?.status === 404) {
-          console.log(`⚠️ Curso sin actividades (404): ${nombreCurso}`);
+          console.log(`Curso sin actividades (404): ${nombreCurso}`);
           continue;
         }
 
         // 👇 Si API regresa error custom con codigo 404
         if (err.response?.data?.codigo === 404) {
-          console.log(`⚠️ Curso sin actividades: ${nombreCurso}`);
+          console.log(`Curso sin actividades: ${nombreCurso}`);
           continue;
         }
 
         // 👇 Otro error real → sí lo lanzamos
-        console.error(`❌ Error obteniendo actividades de ${nombreCurso}:`,
+        console.error(`Error obteniendo actividades de ${nombreCurso}:`,
           err.response?.data || err.message
         );
 
@@ -275,7 +258,6 @@ async function checkActivities() {
 
           nuevasVistas.push(idAct);
           actividadesNuevas++;
-          console.log(`   🔔 Nueva: ${act.titulo} (${nombreCurso})`);
         }
 
         // RECORDATORIOS
@@ -297,31 +279,16 @@ async function checkActivities() {
             nuevosRecordatorios.push(recordatorioKey);
             recordatoriosEnviados_count++;
 
-            console.log(
-              `   ⏰ Recordatorio: ${act.titulo} (${nombreCurso}) - ${minutosRestantes} min restantes`
-            );
           }
         }
       }
     }
 
 
-    if (actividadesNuevas === 0 && recordatoriosEnviados_count === 0) {
-      console.log("✅ No hay actividades nuevas ni recordatorios pendientes");
-    } else {
-      if (actividadesNuevas > 0) {
-        console.log(`\n🎉 Total de actividades nuevas: ${actividadesNuevas}`);
-      }
-      if (recordatoriosEnviados_count > 0) {
-        console.log(`⏰ Total de recordatorios enviados: ${recordatoriosEnviados_count}`);
-      }
-    }
 
-    // Guardar DBs
     fs.writeFileSync(DB_FILE, JSON.stringify(nuevasVistas, null, 2));
     fs.writeFileSync(REMINDERS_FILE, JSON.stringify(nuevosRecordatorios, null, 2));
 
-    console.log("\n✅ Ejecución completada exitosamente");
 
   } catch (err) {
     console.error("❌ Error:", err.response?.data || err.message);
@@ -330,8 +297,8 @@ async function checkActivities() {
 }
 
 // --- INICIAR ---
-console.log("🤖 Bot de Eminus para GitHub Actions");
-console.log(`⏰ Recordatorios: ${MINUTOS_ANTES} minutos antes del vencimiento\n`);
+console.log("Bot de Eminus para GitHub Actions");
+console.log(`Recordatorios: ${MINUTOS_ANTES} minutos antes del vencimiento\n`);
 
 checkActivities().catch(err => {
   console.error("❌ Error fatal:", err);
